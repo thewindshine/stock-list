@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Cusps and Crafts — Inventory</title>
+<link rel="icon" href="icons/favicon.ico" sizes="any">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16211E">
+<style>
+  :root{
+    --bg:#F3F5F4;
+    --ink:#16211E;
+    --ink-dim:#6B7A76;
+    --card:#FFFFFF;
+    --line:#E4E9E7;
+    --primary:#0E8A7D;
+    --primary-dim:#E4F4F1;
+    --danger:#D6572E;
+    --danger-dim:#FBE9E2;
+    --radius:18px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
+  input{ user-select:text; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    padding-bottom:60px;
+    overscroll-behavior-y:contain;
+  }
+  header.top{
+    position:sticky; top:0; z-index:20;
+    background:var(--ink);
+    color:#fff;
+    padding:14px 16px 10px;
+  }
+  .brand{ font-size:13px; letter-spacing:.04em; opacity:.65; margin-bottom:2px; }
+  .title-row{ display:flex; align-items:center; justify-content:space-between; }
+  .title-row h1{ font-size:20px; margin:0; font-weight:700; }
+  .userchip{ display:flex; align-items:center; gap:8px; }
+  .userchip img{ width:26px; height:26px; border-radius:50%; }
+  .userchip button{
+    background:rgba(255,255,255,.1); border:none; color:#fff; font-size:12px;
+    padding:6px 10px; border-radius:999px; font-weight:600;
+  }
+  .alert{
+    display:inline-flex; align-items:center; gap:6px; margin-top:10px;
+    background:rgba(255,255,255,.08); border-radius:999px; padding:6px 12px;
+    font-size:12.5px;
+  }
+  .alert b{ color:#FF9C7A; font-size:14px; }
+  .alert.none{ opacity:.55; }
+  .synctag{
+    font-size:11px; opacity:.6; margin-top:8px;
+  }
+
+  .tabbar{
+    position:sticky; top:76px; z-index:19;
+    background:var(--bg);
+    display:flex; gap:8px; padding:12px 14px 8px;
+    overflow-x:auto;
+    border-bottom:1px solid var(--line);
+  }
+  .tab{
+    flex:0 0 auto; padding:9px 14px; border-radius:999px; font-size:14px;
+    border:1px solid var(--line); background:#fff; color:var(--ink-dim); font-weight:700;
+    white-space:nowrap; display:flex; align-items:center; gap:6px;
+    touch-action:none;
+  }
+  .tab.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .tab .x{ opacity:.5; font-weight:400; padding-left:2px; }
+  .tab.addtab{ background:var(--primary-dim); color:var(--primary); border-color:var(--primary-dim); touch-action:auto; }
+  .tab.dragging{ box-shadow:0 6px 16px rgba(0,0,0,.18); opacity:.9; }
+
+  .newtab-row{ display:flex; gap:8px; padding:10px 14px 0; }
+  .newtab-row input{ flex:1; padding:11px 13px; border-radius:12px; border:1px solid var(--line); font-size:15px; }
+  .newtab-row button{ padding:0 16px; border-radius:12px; border:none; background:var(--primary); color:#fff; font-weight:700; font-size:14px; }
+
+  .searchbar{ padding:12px 14px 6px; }
+  .searchbar input{
+    width:100%; padding:13px 14px; border-radius:14px; border:1px solid var(--line);
+    font-size:16px; background:#fff; color:var(--ink);
+  }
+  .filters{ display:flex; gap:8px; padding:8px 14px 4px; }
+  .chip{
+    flex:0 0 auto; padding:8px 14px; border-radius:999px; font-size:13.5px;
+    border:1px solid var(--line); background:#fff; color:var(--ink-dim); font-weight:600;
+    white-space:nowrap;
+  }
+  .chip.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+
+  section{ padding:14px 14px 6px; }
+  .section-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px; }
+  .section-head span{ font-size:12.5px; color:var(--ink-dim); }
+  .hint{ font-size:11.5px; color:var(--ink-dim); margin:-2px 0 10px; }
+
+  .card{
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:12px;
+    margin-bottom:10px;
+    display:flex; align-items:center; gap:10px;
+    border:1px solid var(--line);
+    position:relative;
+    touch-action:pan-y;
+  }
+  .card.low{ border-color:#F0C3AE; background:var(--danger-dim); }
+  .card.low::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--danger); border-radius:var(--radius) 0 0 var(--radius);
+  }
+  .card.dragging{ box-shadow:0 10px 22px rgba(0,0,0,.18); opacity:.95; }
+  .grip{ flex:0 0 auto; width:14px; text-align:center; color:var(--ink-dim); font-size:16px; letter-spacing:-1px; opacity:.45; }
+  .swatch{ width:44px; height:44px; border-radius:12px; flex:0 0 auto; border:1px solid rgba(0,0,0,.08); }
+  .info{ flex:1; min-width:0; }
+  .info .name{ font-size:15.5px; font-weight:700; }
+  .info .code{ font-size:12px; color:var(--ink-dim); }
+  .info .tag{
+    font-size:11px; background:var(--primary-dim); color:var(--primary); padding:2px 8px;
+    border-radius:999px; font-weight:700; margin-top:4px; display:inline-block;
+  }
+  .minrow{ font-size:12px; color:var(--ink-dim); margin-top:5px; display:flex; align-items:center; gap:5px; }
+  .minrow button{ border:none; background:none; color:var(--primary); font-size:12px; font-weight:700; padding:2px 4px; }
+  .minrow input{ width:44px; padding:3px 5px; border-radius:6px; border:1px solid var(--line); font-size:13px; }
+  .qty-block{ display:flex; flex-direction:column; align-items:center; gap:6px; flex:0 0 auto; }
+  .count{ font-size:22px; font-weight:800; min-width:26px; text-align:center; }
+  .count.low{ color:var(--danger); }
+  .stepper{ display:flex; align-items:center; gap:6px; }
+  .stepper button{
+    width:44px; height:44px; border-radius:12px; border:1px solid var(--line);
+    background:#fff; font-size:20px; font-weight:700; color:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .stepper button.plus{ background:var(--primary); color:#fff; border-color:var(--primary); }
+  .stepper button:active{ transform:scale(.93); }
+  .stepper button:disabled{ opacity:.4; }
+
+  .empty{ text-align:center; color:var(--ink-dim); padding:30px 10px; font-size:14px; }
+
+  .additem{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    padding:14px; border-radius:var(--radius); border:1.5px dashed var(--line);
+    color:var(--primary); font-weight:700; font-size:14px; margin-top:4px; margin-bottom:16px;
+  }
+  .additem-form{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px; margin-bottom:16px; display:flex; flex-direction:column; gap:8px;
+  }
+  .additem-form input[type="text"], .additem-form input[type="number"]{
+    padding:11px 12px; border-radius:12px; border:1px solid var(--line); font-size:15px;
+  }
+  .additem-form .row{ display:flex; gap:8px; }
+  .additem-form .row > *{ flex:1; }
+  .additem-form .colorrow{ display:flex; align-items:center; gap:10px; }
+  .additem-form .colorrow input[type="color"]{ width:44px; height:44px; border-radius:12px; border:1px solid var(--line); padding:0; }
+  .additem-form .actions{ display:flex; gap:8px; margin-top:2px; }
+  .additem-form .actions button{ flex:1; padding:11px; border-radius:12px; border:none; font-weight:700; font-size:14px; }
+  .additem-form .save{ background:var(--primary); color:#fff; }
+  .additem-form .cancel{ background:var(--line); color:var(--ink-dim); }
+
+  .note{
+    margin:18px 14px 0; padding:12px 14px; background:#FFF7E8; border:1px solid #F3DFAE;
+    border-radius:14px; font-size:12.5px; color:#7A5A12; line-height:1.5;
+  }
+
+  /* --- gate screens (setup / sign-in / not authorized) --- */
+  .gate{
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:32px 24px; text-align:center; gap:14px;
+  }
+  .gate .g-brand{ font-size:13px; letter-spacing:.04em; color:var(--ink-dim); }
+  .gate h2{ margin:0; font-size:20px; }
+  .gate p{ margin:0; color:var(--ink-dim); font-size:14px; line-height:1.6; max-width:320px; }
+  .gate .signin-btn{
+    display:flex; align-items:center; gap:10px; background:#fff; border:1px solid var(--line);
+    border-radius:14px; padding:13px 22px; font-size:15px; font-weight:700; color:var(--ink);
+    box-shadow:0 2px 8px rgba(0,0,0,.06); margin-top:8px;
+  }
+  .gate .signin-btn img{ width:20px; height:20px; }
+  .gate .errbox{
+    background:var(--danger-dim); color:#8A3416; border:1px solid #F0C3AE; border-radius:14px;
+    padding:12px 16px; font-size:13px; max-width:320px; text-align:left;
+  }
+  .gate code{ background:var(--primary-dim); color:var(--primary); padding:1px 6px; border-radius:6px; font-size:12.5px; }
+</style>
+</head>
+<body>
+
+<div id="gateRoot"></div>
+<div id="appRoot" style="display:none;">
+
+<header class="top">
+  <div class="title-row">
+    <div>
+      <div class="brand">CUSPS AND CRAFTS BY SHINE</div>
+      <h1>Inventory</h1>
+    </div>
+    <div class="userchip" id="userChip"></div>
+  </div>
+  <div id="alertBox" class="alert"><span>Below minimum stock</span> <b id="alertCount">0</b> <span>items</span></div>
+  <div class="synctag" id="syncTag">Synced</div>
+</header>
+
+<div class="tabbar" id="tabbar"></div>
+<div class="newtab-row" id="newtabRow" style="display:none;">
+  <input id="newtabInput" type="text" placeholder="New tab name, e.g. Adhesives" />
+  <button id="newtabConfirm">Add</button>
+</div>
+
+<div class="searchbar">
+  <input id="search" type="text" placeholder="Search items…" />
+</div>
+<div class="filters">
+  <div class="chip active" data-filter="all">All</div>
+  <div class="chip" data-filter="low">Low stock only</div>
+</div>
+
+<section>
+  <div class="section-head">
+    <h2 id="sectionTitle"></h2>
+    <span id="itemCount"></span>
+  </div>
+  <div class="hint" id="dragHint">Press and hold a card, then drag to reorder.</div>
+  <div id="itemList"></div>
+  <div class="additem" id="addItemBtn">＋ Add Item</div>
+</section>
+
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* =========================================================================
+   SETUP — fill these in once you've created the Firebase project.
+   See the checklist that came with this file for exact steps.
+   ========================================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyA7PabAolZ-aNF8in94ihvHxEToCLMew1Q",
+  authDomain: "lab-stock-5f8c4.firebaseapp.com",
+  projectId: "lab-stock-5f8c4",
+  storageBucket: "lab-stock-5f8c4.firebasestorage.app",
+  messagingSenderId: "757739173338",
+  appId: "1:757739173338:web:381221ef8d5841c8843ce3"
+};
+
+// Only these Google accounts are allowed in.
+const ALLOWED_EMAILS = ["thewindshine@gmail.com"];
+
+// Where the shared inventory data lives in Firestore.
+const DOC_PATH = ["inventory", "shared"];
+/* ========================================================================= */
+
+const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
+const gateRoot = document.getElementById('gateRoot');
+const appRoot = document.getElementById('appRoot');
+
+function showGate(html){
+  appRoot.style.display = 'none';
+  gateRoot.style.display = 'flex';
+  gateRoot.innerHTML = html;
+}
+
+if(!isConfigured){
+  showGate(`
+    <div class="gate">
+      <div class="g-brand">CUSPS AND CRAFTS BY SHINE</div>
+      <h2>Setup needed</h2>
+      <p>This copy of the app doesn't have its Firebase project connected yet.
+      Open <code>index.html</code>, find the <code>firebaseConfig</code> object near the top of the script,
+      and paste in the config values from your Firebase project settings.</p>
+    </div>
+  `);
+} else {
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // On phones, popup sign-in is frequently blocked or silently swallowed by
+  // the mobile browser, which is what "stuck at login" usually is. Redirect
+  // is far more reliable there, so use it on mobile and popup on desktop.
+  function showSignIn(errMsg){
+    showGate(`
+      <div class="gate">
+        <div class="g-brand">CUSPS AND CRAFTS BY SHINE</div>
+        <h2>Inventory</h2>
+        <p>Sign in with the shop's Google account to view and update stock.</p>
+        <button class="signin-btn" id="signInBtn">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="">
+          Sign in with Google
+        </button>
+        ${errMsg ? `<div class="errbox">${errMsg}</div>` : ''}
+      </div>
+    `);
+    document.getElementById('signInBtn').addEventListener('click', ()=>{
+      if(isMobile){
+        signInWithRedirect(auth, provider).catch(err=>{
+          showSignIn(`Sign-in failed: ${err.code || err.message}`);
+        });
+      } else {
+        signInWithPopup(auth, provider).catch(err=>{
+          showSignIn(`Sign-in failed: ${err.code || err.message}`);
+        });
+      }
+    });
+  }
+
+  // Completes the sign-in after the redirect brings the user back from Google.
+  getRedirectResult(auth).catch(err=>{
+    showSignIn(`Sign-in failed: ${err.code || err.message}`);
+  });
+
+  function showNotAuthorized(email){
+    showGate(`
+      <div class="gate">
+        <div class="g-brand">CUSPS AND CRAFTS BY SHINE</div>
+        <h2>Not authorized</h2>
+        <div class="errbox">Signed in as <b>${email}</b>, but this account isn't on the allowed list for this app.</div>
+        <button class="signin-btn" id="signOutBtn">Sign out</button>
+      </div>
+    `);
+    document.getElementById('signOutBtn').addEventListener('click', ()=> signOut(auth));
+  }
+
+  onAuthStateChanged(auth, (user)=>{
+    if(!user){ showSignIn(); return; }
+    if(!ALLOWED_EMAILS.includes(user.email)){ showNotAuthorized(user.email); return; }
+    gateRoot.style.display = 'none';
+    appRoot.style.display = 'block';
+    document.getElementById('userChip').innerHTML = `
+      <img src="${user.photoURL||''}" alt="">
+      <button id="signOutBtn2">Sign out</button>
+    `;
+    document.getElementById('signOutBtn2').addEventListener('click', ()=> signOut(auth));
+    startApp(db);
+  });
+}
+
+/* =========================================================================
+   APP LOGIC — same UI/behaviour as the prototype, now synced via Firestore
+   instead of held only in memory.
+   ========================================================================= */
+function startApp(db){
+  const docRef = doc(db, DOC_PATH[0], DOC_PATH[1]);
+  function uid(){ return 'i_' + Math.random().toString(36).slice(2,9); }
+
+  const defaultBlanks = [
+    {name:'Black',code:'#01',hex:'#111111',stock:3,min:2},
+    {name:'Dark Blue',code:'#02',hex:'#173B6C',stock:2,min:1},
+    {name:'Maroon',code:'#03',hex:'#6B1226',stock:2,min:1},
+    {name:'Silver',code:'#04',hex:'#B9BEC2',stock:1,min:0},
+    {name:'Gold',code:'#05',hex:'#8A7A1E',stock:1,min:0},
+    {name:'Royal Blue',code:'#06',hex:'#1A4FCB',stock:4,min:1},
+    {name:'Lilac',code:'#07',hex:'#B69ED0',stock:1,min:0},
+    {name:'Sky Blue',code:'#08',hex:'#1FA8D6',stock:2,min:1},
+    {name:'Green',code:'#09',hex:'#2E9A3D',stock:2,min:1},
+    {name:'Pink',code:'#10',hex:'#F2A8C2',stock:1,min:0},
+    {name:'Red',code:'#11',hex:'#D22B24',stock:2,min:1},
+    {name:'Turquoise',code:'#12',hex:'#3BC2A9',stock:2,min:0},
+    {name:'White',code:'#13',hex:'#EDEDED',stock:4,min:2},
+    {name:'Yellow',code:'#14',hex:'#F4CE1E',stock:2,min:1},
+    {name:'Fluro Orange',code:'#15',hex:'#F07A1F',stock:2,min:0},
+    {name:'Fluro Yellow',code:'#16',hex:'#D7E51E',stock:2,min:1},
+    {name:'Fluro Green',code:'#17',hex:'#6FD62A',stock:2,min:1},
+    {name:'Clear',code:'#18',hex:'#DCEFF1',stock:1,min:0},
+    {name:'Fluro Pink',code:'#19',hex:'#F22E8E',stock:2,min:0},
+    {name:'Rac Green',code:'#20',hex:'#0F4B33',stock:1,min:0},
+    {name:'Brown',code:'#21',hex:'#5C3A1E',stock:1,min:0},
+    {name:'Fluro Red',code:'#22',hex:'#EE3224',stock:1,min:0},
+    {name:'Apple',code:'#23',hex:'#B4D65A',stock:1,min:0},
+    {name:'Lavender',code:'#24',hex:'#C3B4E0',stock:1,min:0},
+    {name:'Cerise',code:'#25',hex:'#D91B72',stock:1,min:0},
+    {name:'Sandstone',code:'#26',hex:'#C9A876',stock:1,min:0},
+    {name:'Cherry',code:'#27',hex:'#8E1B2E',stock:1,min:0},
+    {name:'Amethyst',code:'#28',hex:'#5B2E8C',stock:1,min:0},
+    {name:'Teal',code:'#29',hex:'#0E7C7B',stock:1,min:0},
+    {name:'Aussie Yellow',code:'#30',hex:'#C7B41E',stock:2,min:0},
+    {name:'Metallic Mist',code:'#31',hex:'#C7CDD1',stock:1,min:0},
+    {name:'Shrimp',code:'#32',hex:'#F08C7A',stock:1,min:0},
+    {name:'Metallic Green',code:'#33',hex:'#9FB09E',stock:1,min:0},
+    {name:'Cornflour Blue',code:'#34',hex:'#7FA6D6',stock:2,min:1},
+    {name:'Leaf Green Bio',code:'#35',hex:'#2C7A3E',stock:1,min:0},
+    {name:'Solid Orange',code:'#36',hex:'#D9601C',stock:1,min:0},
+  ].map(i => ({...i, _id: uid()}));
+
+  const defaultOthers = [
+    {name:'2mm clear', tag:null, hex:null, stock:33, min:5},
+    {name:'Black and red split', tag:'special effect', hex:null, stock:3, min:1},
+    {name:'Purple and white split', tag:'special effect', hex:null, stock:3, min:1},
+    {name:'Erkolock-pro 2mm', tag:null, hex:null, stock:7, min:2},
+    {name:'1mm hard', tag:null, hex:null, stock:31, min:1},
+  ].map(i => ({...i, _id: uid()}));
+
+  let categories = [
+    {id:'blanks', name:'Mouthguard Blanks', locked:true, items: defaultBlanks},
+    {id:'others', name:'Other Items', locked:true, items: defaultOthers},
+  ];
+  let activeTab = 'blanks';
+  let filter = 'all';
+  let query = '';
+  let showAddForm = false;
+  let dragging = false;
+  let saveTimer = null;
+  let applyingRemote = false;
+
+  async function ensureDoc(){
+    const snap = await getDoc(docRef);
+    if(!snap.exists()){
+      await setDoc(docRef, { categories });
+    }
+  }
+
+  function scheduleSave(){
+    document.getElementById('syncTag').textContent = 'Saving…';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async ()=>{
+      try{
+        await setDoc(docRef, { categories });
+        document.getElementById('syncTag').textContent = 'Synced';
+      }catch(err){
+        document.getElementById('syncTag').textContent = 'Save failed — check connection';
+      }
+    }, 350);
+  }
+
+  ensureDoc().then(()=>{
+    onSnapshot(docRef, (snap)=>{
+      if(!snap.exists() || dragging) return;
+      const data = snap.data();
+      if(!data || !data.categories) return;
+      applyingRemote = true;
+      categories = data.categories;
+      if(!categories.find(c=>c.id===activeTab)) activeTab = categories[0]?.id;
+      renderAll();
+      applyingRemote = false;
+    });
+  });
+
+  function isLow(item){ return item.stock < item.min; }
+  function currentCategory(){ return categories.find(c=>c.id===activeTab); }
+  function matches(name){ return name.toLowerCase().includes(query.toLowerCase()); }
+  function canReorder(){ return filter==='all' && query===''; }
+  function commit(){ if(!applyingRemote) scheduleSave(); }
+
+  function renderAlert(){
+    const total = categories.reduce((sum,c)=>sum + c.items.filter(isLow).length, 0);
+    document.getElementById('alertCount').textContent = total;
+    document.getElementById('alertBox').classList.toggle('none', total===0);
+  }
+
+  function makeSortable(container, itemSelector, canDrag, onReorder){
+    let dragEl=null, pointerId=null, holdTimer=null, longPress=false, startX=0, startY=0, moved=false;
+    function pointerDown(e){
+      if(!canDrag()) return;
+      const item = e.target.closest(itemSelector);
+      if(!item || !container.contains(item)) return;
+      if(e.target.closest('button, input, textarea, .x')) return;
+      startX=e.clientX; startY=e.clientY; moved=false; longPress=false; pointerId=e.pointerId;
+      holdTimer=setTimeout(()=>{ if(!moved) startDrag(item, e); }, 420);
+      document.addEventListener('pointermove', preMove);
+      document.addEventListener('pointerup', preUp, {once:true});
+      function preMove(ev){
+        if(longPress) return;
+        if(Math.abs(ev.clientX-startX)>10 || Math.abs(ev.clientY-startY)>10){
+          moved=true; clearTimeout(holdTimer);
+          document.removeEventListener('pointermove', preMove);
+        }
+      }
+      function preUp(){ clearTimeout(holdTimer); document.removeEventListener('pointermove', preMove); }
+    }
+    function startDrag(item, e){
+      longPress = true; dragging = true;
+      dragEl = item;
+      try{ dragEl.setPointerCapture(pointerId); }catch(err){}
+      dragEl.classList.add('dragging');
+      if(navigator.vibrate) navigator.vibrate(12);
+      document.addEventListener('pointermove', onDragMove);
+      document.addEventListener('pointerup', onDragEnd, {once:true});
+      document.addEventListener('pointercancel', onDragEnd, {once:true});
+    }
+    function onDragMove(e){
+      if(!dragEl) return;
+      e.preventDefault();
+      const y = e.clientY;
+      const els = Array.from(container.querySelectorAll(itemSelector)).filter(el=>el!==dragEl);
+      for(const el of els){
+        const r = el.getBoundingClientRect();
+        const mid = r.top + r.height/2;
+        if(y < mid && el.previousElementSibling !== dragEl){ container.insertBefore(dragEl, el); break; }
+        else if(y >= mid && el.nextElementSibling !== dragEl){ container.insertBefore(dragEl, el.nextSibling); break; }
+      }
+    }
+    function onDragEnd(){
+      document.removeEventListener('pointermove', onDragMove);
+      dragging = false;
+      if(dragEl){
+        dragEl.classList.remove('dragging');
+        try{ dragEl.releasePointerCapture(pointerId); }catch(err){}
+        const ids = Array.from(container.querySelectorAll(itemSelector)).map(el=>el.dataset.sortId);
+        onReorder(ids);
+      }
+      dragEl = null;
+    }
+    container.addEventListener('pointerdown', pointerDown);
+  }
+
+  function renderTabs(){
+    const bar = document.getElementById('tabbar');
+    bar.innerHTML = '';
+    categories.forEach(cat=>{
+      const t = document.createElement('div');
+      t.className = 'tab' + (cat.id===activeTab ? ' active' : '');
+      t.dataset.sortId = cat.id;
+      t.innerHTML = `<span>${cat.name}</span>` + (!cat.locked ? `<span class="x" data-del="${cat.id}">✕</span>` : '');
+      t.addEventListener('click', (e)=>{
+        if(e.target.dataset.del){
+          e.stopPropagation();
+          if(confirm(`Delete tab "${cat.name}"? Items inside will be deleted too.`)){
+            categories = categories.filter(c=>c.id!==cat.id);
+            if(activeTab===cat.id) activeTab = categories[0].id;
+            renderAll(); commit();
+          }
+          return;
+        }
+        activeTab = cat.id;
+        showAddForm = false;
+        document.getElementById('newtabRow').style.display = 'none';
+        renderAll();
+      });
+      bar.appendChild(t);
+    });
+    const addTab = document.createElement('div');
+    addTab.className = 'tab addtab';
+    addTab.innerHTML = '＋ New Tab';
+    addTab.addEventListener('click', ()=>{
+      const row = document.getElementById('newtabRow');
+      row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+      document.getElementById('newtabInput').focus();
+    });
+    bar.appendChild(addTab);
+    makeSortable(bar, '.tab:not(.addtab)', ()=>true, (ids)=>{
+      const map = new Map(categories.map(c=>[c.id,c]));
+      categories = ids.map(id=>map.get(id));
+      renderAll(); commit();
+    });
+  }
+
+  document.getElementById('newtabConfirm').addEventListener('click', ()=>{
+    const input = document.getElementById('newtabInput');
+    const name = input.value.trim();
+    if(!name) return;
+    const id = 'cat_' + Date.now();
+    categories.push({id, name, locked:false, items:[]});
+    activeTab = id;
+    input.value = '';
+    document.getElementById('newtabRow').style.display = 'none';
+    renderAll(); commit();
+  });
+
+  function renderList(){
+    const cat = currentCategory();
+    if(!cat) return;
+    document.getElementById('sectionTitle').textContent = cat.name;
+    document.getElementById('dragHint').style.display = canReorder() ? 'block' : 'none';
+    const list = document.getElementById('itemList');
+    list.innerHTML = '';
+    let shown = 0;
+    cat.items.forEach((item) => {
+      if (filter==='low' && !isLow(item)) return;
+      if (query && !matches(item.name) && !(item.code && matches(item.code))) return;
+      shown++;
+      const card = document.createElement('div');
+      card.className = 'card' + (isLow(item) ? ' low' : '');
+      card.dataset.sortId = item._id;
+      card.innerHTML = `
+        ${canReorder() ? `<div class="grip">⋮⋮</div>` : ''}
+        ${item.hex ? `<div class="swatch" style="background:${item.hex}"></div>` : ''}
+        <div class="info">
+          <div class="name">${item.name}</div>
+          ${item.code ? `<div class="code">${item.code}</div>` : ''}
+          ${item.tag ? `<div class="tag">${item.tag}</div>` : ''}
+          <div class="minrow" data-role="minrow">
+            <span>Min stock: ${item.min}</span>
+            <button data-role="editmin">Edit</button>
+          </div>
+        </div>
+        <div class="qty-block">
+          <div class="count ${isLow(item)?'low':''}">${item.stock}</div>
+          <div class="stepper">
+            <button class="minus">−</button>
+            <button class="plus">＋</button>
+          </div>
+        </div>
+      `;
+      card.querySelector('.plus').addEventListener('click', ()=>{ item.stock++; renderAll(); commit(); });
+      card.querySelector('.minus').addEventListener('click', ()=>{ if(item.stock>0) item.stock--; renderAll(); commit(); });
+      card.querySelector('[data-role="editmin"]').addEventListener('click', ()=>{
+        const row = card.querySelector('[data-role="minrow"]');
+        row.innerHTML = `Min stock: <input type="number" value="${item.min}" min="0"> <button data-role="save">Save</button>`;
+        const input = row.querySelector('input');
+        input.focus();
+        row.querySelector('[data-role="save"]').addEventListener('click', ()=>{
+          item.min = parseInt(input.value)||0;
+          renderAll(); commit();
+        });
+      });
+      list.appendChild(card);
+    });
+    document.getElementById('itemCount').textContent = shown + (shown===1 ? ' item' : ' items');
+    if(shown===0){ list.innerHTML = '<div class="empty">No matching items</div>'; }
+    makeSortable(list, '.card', canReorder, (ids)=>{
+      const map = new Map(cat.items.map(i=>[i._id,i]));
+      cat.items = ids.map(id=>map.get(id));
+      commit();
+    });
+  }
+
+  function renderAddForm(){
+    const btn = document.getElementById('addItemBtn');
+    const existingForm = document.getElementById('addItemForm');
+    if(!showAddForm){
+      btn.style.display = 'flex';
+      if(existingForm) existingForm.remove();
+      return;
+    }
+    btn.style.display = 'none';
+    if(existingForm) existingForm.remove();
+    const form = document.createElement('div');
+    form.className = 'additem-form';
+    form.id = 'addItemForm';
+    form.innerHTML = `
+      <input type="text" id="newItemName" placeholder="Item name" />
+      <div class="colorrow">
+        <input type="color" id="newItemColor" value="#0E8A7D" />
+        <span style="font-size:12.5px;color:var(--ink-dim);">Not a blank colour? You can skip the swatch.</span>
+      </div>
+      <div class="row">
+        <input type="number" id="newItemStock" placeholder="Current stock" value="0" min="0" />
+        <input type="number" id="newItemMin" placeholder="Minimum stock" value="0" min="0" />
+      </div>
+      <div class="actions">
+        <button class="cancel">Cancel</button>
+        <button class="save">Add Item</button>
+      </div>
+    `;
+    document.getElementById('itemList').insertAdjacentElement('afterend', form);
+    form.querySelector('.cancel').addEventListener('click', ()=>{ showAddForm=false; renderAll(); });
+    form.querySelector('.save').addEventListener('click', ()=>{
+      const name = document.getElementById('newItemName').value.trim();
+      if(!name){ document.getElementById('newItemName').focus(); return; }
+      const useColor = document.getElementById('newItemColor').dataset.touched === '1';
+      const cat = currentCategory();
+      cat.items.push({
+        _id: uid(), name,
+        hex: useColor ? document.getElementById('newItemColor').value : null,
+        code: null, tag: null,
+        stock: parseInt(document.getElementById('newItemStock').value)||0,
+        min: parseInt(document.getElementById('newItemMin').value)||0,
+      });
+      showAddForm = false;
+      renderAll(); commit();
+    });
+    form.querySelector('#newItemColor').addEventListener('input', (e)=>{ e.target.dataset.touched='1'; });
+  }
+
+  document.getElementById('addItemBtn').addEventListener('click', ()=>{
+    showAddForm = true; renderAll();
+    document.getElementById('newItemName')?.focus();
+  });
+  document.getElementById('search').addEventListener('input', (e)=>{ query = e.target.value; renderAll(); });
+  document.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      filter = chip.dataset.filter;
+      renderAll();
+    });
+  });
+
+  function renderAll(){
+    renderAlert();
+    renderTabs();
+    renderList();
+    renderAddForm();
+  }
+  renderAll();
+}
+</script>
+</body>
+</html>
