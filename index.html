@@ -230,6 +230,8 @@
 
 </div>
 
+<div style="position:fixed;right:6px;bottom:6px;z-index:1000;font-size:9px;color:#ccc;background:rgba(0,0,0,.35);padding:2px 6px;border-radius:6px;">build r3</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -273,6 +275,12 @@ function showDebugError(label, detail){
 }
 window.addEventListener('error', (e)=> showDebugError('Script error', e.message));
 window.addEventListener('unhandledrejection', (e)=> showDebugError('Unhandled error', (e.reason && (e.reason.code || e.reason.message)) || String(e.reason)));
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(err=>{
+    showDebugError('Service worker failed', err.message);
+  });
+}
 
 function showGate(html){
   appRoot.style.display = 'none';
