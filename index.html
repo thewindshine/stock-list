@@ -233,7 +233,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, setPersistence, browserLocalPersistence, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, onSnapshot
@@ -263,6 +263,17 @@ const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
 const gateRoot = document.getElementById('gateRoot');
 const appRoot = document.getElementById('appRoot');
 
+// Surfaces silent JS failures on-screen — on a phone there's no console to
+// check, so without this a broken script just looks like "nothing happens".
+function showDebugError(label, detail){
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:999;background:#FBE9E2;border:1px solid #F0C3AE;color:#8A3416;border-radius:12px;padding:10px 14px;font-size:12px;line-height:1.5;';
+  box.textContent = label + ': ' + detail;
+  document.body.appendChild(box);
+}
+window.addEventListener('error', (e)=> showDebugError('Script error', e.message));
+window.addEventListener('unhandledrejection', (e)=> showDebugError('Unhandled error', (e.reason && (e.reason.code || e.reason.message)) || String(e.reason)));
+
 function showGate(html){
   appRoot.style.display = 'none';
   gateRoot.style.display = 'flex';
@@ -286,9 +297,32 @@ if(!isConfigured){
   const provider = new GoogleAuthProvider();
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  // On phones, popup sign-in is frequently blocked or silently swallowed by
-  // the mobile browser, which is what "stuck at login" usually is. Redirect
-  // is far more reliable there, so use it on mobile and popup on desktop.
+  // Setting persistence up-front (rather than at click time) avoids a subtle
+  // Safari issue: signInWithRedirect does async prep work before navigating,
+  // and if that happens after the click's user-gesture window closes, Safari
+  // silently swallows the redirect — which looks exactly like "nothing
+  // happens" when you tap the button.
+  setPersistence(auth, browserLocalPersistence).catch(err=>{
+    showDebugError('Persistence setup failed', err.code || err.message);
+  });
+
+  function attemptSignIn(){
+    // Try popup first — on a real mobile Safari/Chrome tab (not an in-app
+    // browser) a popup opened synchronously from a tap generally works fine,
+    // and it avoids the async-redirect gesture issue above. Fall back to
+    // redirect only if the popup itself gets blocked.
+    signInWithPopup(auth, provider).catch(err=>{
+      const fallbackCodes = ['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/popup-closed-by-user'];
+      if(isMobile && fallbackCodes.includes(err.code)){
+        signInWithRedirect(auth, provider).catch(err2=>{
+          showSignIn(`Sign-in failed: ${err2.code || err2.message}`);
+        });
+      } else {
+        showSignIn(`Sign-in failed: ${err.code || err.message}`);
+      }
+    });
+  }
+
   function showSignIn(errMsg){
     showGate(`
       <div class="gate">
@@ -302,17 +336,7 @@ if(!isConfigured){
         ${errMsg ? `<div class="errbox">${errMsg}</div>` : ''}
       </div>
     `);
-    document.getElementById('signInBtn').addEventListener('click', ()=>{
-      if(isMobile){
-        signInWithRedirect(auth, provider).catch(err=>{
-          showSignIn(`Sign-in failed: ${err.code || err.message}`);
-        });
-      } else {
-        signInWithPopup(auth, provider).catch(err=>{
-          showSignIn(`Sign-in failed: ${err.code || err.message}`);
-        });
-      }
-    });
+    document.getElementById('signInBtn').addEventListener('click', attemptSignIn);
   }
 
   // Completes the sign-in after the redirect brings the user back from Google.
