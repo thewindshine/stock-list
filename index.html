@@ -304,7 +304,9 @@ if(!isConfigured){
     `);
     document.getElementById('signInBtn').addEventListener('click', ()=>{
       if(isMobile){
-        signInWithRedirect(auth, provider);
+        signInWithRedirect(auth, provider).catch(err=>{
+          showSignIn(`Sign-in failed: ${err.code || err.message}`);
+        });
       } else {
         signInWithPopup(auth, provider).catch(err=>{
           showSignIn(`Sign-in failed: ${err.code || err.message}`);
