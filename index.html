@@ -223,14 +223,13 @@
     <h2 id="sectionTitle"></h2>
     <span id="itemCount"></span>
   </div>
-  <div class="hint" id="dragHint">Press and hold a card, then drag to reorder.</div>
   <div id="itemList"></div>
   <div class="additem" id="addItemBtn">＋ Add Item</div>
 </section>
 
 </div>
 
-<div style="position:fixed;right:6px;bottom:6px;z-index:1000;font-size:9px;color:#ccc;background:rgba(0,0,0,.35);padding:2px 6px;border-radius:6px;">build r4</div>
+<div style="position:fixed;right:6px;bottom:6px;z-index:1000;font-size:9px;color:#ccc;background:rgba(0,0,0,.35);padding:2px 6px;border-radius:6px;">build r5</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -599,15 +598,31 @@ function startApp(db){
     renderAll(); commit();
   });
 
+  // Fixed display order: coded items (#01, #02 …) by number, then the known
+  // default items in their original order, then anything added later in the
+  // order it was added. Display only — stored data is never reshuffled.
+  const defaultOrder = new Map([...defaultBlanks, ...defaultOthers].map((d,i)=>[d.name, i]));
+  function sortedItems(cat){
+    const key = (item, idx) => {
+      const n = item.code ? parseInt(String(item.code).replace(/\D/g,''),10) : NaN;
+      if(!isNaN(n)) return [0, n, 0];
+      if(defaultOrder.has(item.name)) return [1, defaultOrder.get(item.name), 0];
+      return [2, idx, 0];
+    };
+    return cat.items
+      .map((item, idx) => ({item, k: key(item, idx)}))
+      .sort((a,b)=> a.k[0]-b.k[0] || a.k[1]-b.k[1])
+      .map(x=>x.item);
+  }
+
   function renderList(){
     const cat = currentCategory();
     if(!cat) return;
     document.getElementById('sectionTitle').textContent = cat.name;
-    document.getElementById('dragHint').style.display = canReorder() ? 'block' : 'none';
     const list = document.getElementById('itemList');
     list.innerHTML = '';
     let shown = 0;
-    cat.items.forEach((item) => {
+    sortedItems(cat).forEach((item) => {
       if (filter==='low' && !isLow(item)) return;
       if (query && !matches(item.name) && !(item.code && matches(item.code))) return;
       shown++;
@@ -615,7 +630,6 @@ function startApp(db){
       card.className = 'card' + (isLow(item) ? ' low' : '');
       card.dataset.sortId = item._id;
       card.innerHTML = `
-        ${canReorder() ? `<div class="grip">⋮⋮</div>` : ''}
         ${item.hex ? `<div class="swatch" style="background:${item.hex}"></div>` : ''}
         <div class="info">
           <div class="name">${item.name}</div>
@@ -650,11 +664,6 @@ function startApp(db){
     });
     document.getElementById('itemCount').textContent = shown + (shown===1 ? ' item' : ' items');
     if(shown===0){ list.innerHTML = '<div class="empty">No matching items</div>'; }
-    makeSortable(list, '.card', canReorder, (ids)=>{
-      const map = new Map(cat.items.map(i=>[i._id,i]));
-      cat.items = ids.map(id=>map.get(id));
-      commit();
-    });
   }
 
   function renderAddForm(){
