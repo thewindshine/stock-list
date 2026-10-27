@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Cusps and Crafts — Inventory</title>
-<link rel="icon" href="favicon.ico" sizes="any">
-<link rel="icon" href="icon-192.png" type="image/png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon.ico?v=2" sizes="any">
+<link rel="icon" href="icon-192.png?v=2" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#16211E">
 <style>
@@ -229,7 +229,7 @@
 
 </div>
 
-<div style="position:fixed;right:6px;bottom:6px;z-index:1000;font-size:9px;color:#ccc;background:rgba(0,0,0,.35);padding:2px 6px;border-radius:6px;">build r5</div>
+<div style="position:fixed;right:6px;bottom:6px;z-index:1000;font-size:9px;color:#ccc;background:rgba(0,0,0,.35);padding:2px 6px;border-radius:6px;">build r7</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -263,6 +263,7 @@ const DOC_PATH = ["inventory", "shared"];
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
 const gateRoot = document.getElementById('gateRoot');
 const appRoot = document.getElementById('appRoot');
+let appStarted = false;   // startApp must only ever run once per page load
 
 // Surfaces silent JS failures on-screen — on a phone there's no console to
 // check, so without this a broken script just looks like "nothing happens".
@@ -364,7 +365,7 @@ if(!isConfigured){
   }
 
   onAuthStateChanged(auth, (user)=>{
-    if(!user){ showSignIn(); return; }
+    if(!user){ if(appStarted){ location.reload(); return; } showSignIn(); return; }
     if(!ALLOWED_EMAILS.includes(user.email)){ showNotAuthorized(user.email); return; }
     gateRoot.style.display = 'none';
     appRoot.style.display = 'block';
@@ -373,7 +374,7 @@ if(!isConfigured){
       <button id="signOutBtn2">Sign out</button>
     `;
     document.getElementById('signOutBtn2').addEventListener('click', ()=> signOut(auth));
-    startApp(db);
+    if(!appStarted){ appStarted = true; startApp(db); }
   });
 }
 
@@ -432,10 +433,15 @@ function startApp(db){
     {name:'1mm hard', tag:null, hex:null, stock:31, min:1},
   ].map(i => ({...i, _id: uid()}));
 
-  let categories = [
+  // Only used to seed Firestore the very first time. The screen never shows
+  // (or saves) these — it waits for the real data to arrive first.
+  const defaultCategories = [
     {id:'blanks', name:'Mouthguard Blanks', locked:true, items: defaultBlanks},
     {id:'others', name:'Other Items', locked:true, items: defaultOthers},
   ];
+  let categories = [];
+  let loaded = false;
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let activeTab = 'blanks';
   let filter = 'all';
   let query = '';
@@ -447,7 +453,7 @@ function startApp(db){
   async function ensureDoc(){
     const snap = await getDoc(docRef);
     if(!snap.exists()){
-      await setDoc(docRef, { categories });
+      await setDoc(docRef, { categories: defaultCategories });
     }
   }
 
@@ -455,6 +461,7 @@ function startApp(db){
     document.getElementById('syncTag').textContent = 'Saving…';
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async ()=>{
+      saveTimer = null;
       try{
         await setDoc(docRef, { categories });
         document.getElementById('syncTag').textContent = 'Synced';
@@ -464,16 +471,51 @@ function startApp(db){
     }, 350);
   }
 
+  // Cleans up stored data: removes duplicate/broken items and puts back any
+  // default colour that has gone missing. Keeps the FIRST copy of a duplicate.
+  function normalize(cats){
+    let changed = false;
+    const out = [];
+    for(const cat of cats){
+      if(!cat || !Array.isArray(cat.items)){ changed = true; continue; }
+      const seenId = new Set(), seenCode = new Set(), seenName = new Set();
+      const items = [];
+      for(const it of cat.items){
+        if(!it || typeof it.name !== 'string'){ changed = true; continue; }
+        if(!it._id){ it._id = uid(); changed = true; }
+        const nameKey = it.name.trim().toLowerCase();
+        if(seenId.has(it._id) || (it.code && seenCode.has(it.code)) || (cat.locked && seenName.has(nameKey))){
+          changed = true; continue;
+        }
+        seenId.add(it._id); if(it.code) seenCode.add(it.code); seenName.add(nameKey);
+        items.push(it);
+      }
+      out.push({...cat, items});
+    }
+    const blanks = out.find(c=>c.id==='blanks');
+    if(blanks){
+      const have = new Set(blanks.items.map(i=>i.code));
+      defaultBlanks.forEach(d=>{ if(!have.has(d.code)){ blanks.items.push({...d}); changed = true; } });
+    }
+    return {cats: out, changed};
+  }
+
   ensureDoc().then(()=>{
     onSnapshot(docRef, (snap)=>{
       if(!snap.exists() || dragging) return;
+      // Ignore echoes of our own writes and anything that arrives while a local
+      // edit is still waiting to be saved, so a stale copy never overwrites it.
+      if(loaded && (snap.metadata.hasPendingWrites || saveTimer)) return;
       const data = snap.data();
-      if(!data || !data.categories) return;
+      if(!data || !Array.isArray(data.categories)) return;
       applyingRemote = true;
-      categories = data.categories;
+      const res = normalize(data.categories);
+      categories = res.cats;
+      loaded = true;
       if(!categories.find(c=>c.id===activeTab)) activeTab = categories[0]?.id;
       renderAll();
       applyingRemote = false;
+      if(res.changed) scheduleSave();   // write the cleaned-up data back once
     });
   });
 
@@ -481,7 +523,7 @@ function startApp(db){
   function currentCategory(){ return categories.find(c=>c.id===activeTab); }
   function matches(name){ return name.toLowerCase().includes(query.toLowerCase()); }
   function canReorder(){ return filter==='all' && query===''; }
-  function commit(){ if(!applyingRemote) scheduleSave(); }
+  function commit(){ if(loaded && !applyingRemote) scheduleSave(); }
 
   function renderAlert(){
     const total = categories.reduce((sum,c)=>sum + c.items.filter(isLow).length, 0);
@@ -552,7 +594,7 @@ function startApp(db){
       const t = document.createElement('div');
       t.className = 'tab' + (cat.id===activeTab ? ' active' : '');
       t.dataset.sortId = cat.id;
-      t.innerHTML = `<span>${cat.name}</span>` + (!cat.locked ? `<span class="x" data-del="${cat.id}">✕</span>` : '');
+      t.innerHTML = `<span>${esc(cat.name)}</span>` + (!cat.locked ? `<span class="x" data-del="${cat.id}">✕</span>` : '');
       t.addEventListener('click', (e)=>{
         if(e.target.dataset.del){
           e.stopPropagation();
@@ -579,17 +621,19 @@ function startApp(db){
       document.getElementById('newtabInput').focus();
     });
     bar.appendChild(addTab);
-    makeSortable(bar, '.tab:not(.addtab)', ()=>true, (ids)=>{
-      const map = new Map(categories.map(c=>[c.id,c]));
-      categories = ids.map(id=>map.get(id));
-      renderAll(); commit();
-    });
   }
+  makeSortable(document.getElementById('tabbar'), '.tab:not(.addtab)', ()=>loaded, (ids)=>{
+    const map = new Map(categories.map(c=>[c.id,c]));
+    const next = ids.map(id=>map.get(id)).filter(Boolean);
+    if(next.length !== categories.length){ renderAll(); return; }
+    categories = next;
+    renderAll(); commit();
+  });
 
   document.getElementById('newtabConfirm').addEventListener('click', ()=>{
     const input = document.getElementById('newtabInput');
     const name = input.value.trim();
-    if(!name) return;
+    if(!name || !loaded) return;
     const id = 'cat_' + Date.now();
     categories.push({id, name, locked:false, items:[]});
     activeTab = id;
@@ -617,7 +661,12 @@ function startApp(db){
 
   function renderList(){
     const cat = currentCategory();
-    if(!cat) return;
+    if(!cat){
+      document.getElementById('sectionTitle').textContent = loaded ? '' : 'Loading…';
+      document.getElementById('itemList').innerHTML = '';
+      document.getElementById('itemCount').textContent = '';
+      return;
+    }
     document.getElementById('sectionTitle').textContent = cat.name;
     const list = document.getElementById('itemList');
     list.innerHTML = '';
@@ -632,9 +681,9 @@ function startApp(db){
       card.innerHTML = `
         ${item.hex ? `<div class="swatch" style="background:${item.hex}"></div>` : ''}
         <div class="info">
-          <div class="name">${item.name}</div>
-          ${item.code ? `<div class="code">${item.code}</div>` : ''}
-          ${item.tag ? `<div class="tag">${item.tag}</div>` : ''}
+          <div class="name">${esc(item.name)}</div>
+          ${item.code ? `<div class="code">${esc(item.code)}</div>` : ''}
+          ${item.tag ? `<div class="tag">${esc(item.tag)}</div>` : ''}
           <div class="minrow" data-role="minrow">
             <span>Min stock: ${item.min}</span>
             <button data-role="editmin">Edit</button>
@@ -675,7 +724,7 @@ function startApp(db){
       return;
     }
     btn.style.display = 'none';
-    if(existingForm) existingForm.remove();
+    if(existingForm) return;
     const form = document.createElement('div');
     form.className = 'additem-form';
     form.id = 'addItemForm';
@@ -715,6 +764,7 @@ function startApp(db){
   }
 
   document.getElementById('addItemBtn').addEventListener('click', ()=>{
+    if(!loaded) return;
     showAddForm = true; renderAll();
     document.getElementById('newItemName')?.focus();
   });
